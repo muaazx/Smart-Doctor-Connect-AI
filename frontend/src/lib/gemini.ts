@@ -1,26 +1,27 @@
 import { GoogleGenAI } from '@google/genai';
 
 const getApiKey = () => {
-  return import.meta.env.VITE_GEMINI_API_KEY || 
-         process.env.GEMINI_API_KEY || 
-         "AIzaSyBaA0gPpQI9IGWjwKM99EsvcopsM2BBmNk";
+  return import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyBaA0gPpQI9IGWjwKM99EsvcopsM2BBmNk";
 };
 
-const ai = new GoogleGenAI(getApiKey());
+// Lazy initialization to avoid top-level errors
+let genAI: GoogleGenAI | null = null;
+const getAI = () => {
+  if (!genAI) {
+    genAI = new GoogleGenAI(getApiKey());
+  }
+  return genAI;
+};
 
 export async function getDoctorSuggestions(symptoms: string) {
   try {
+    const ai = getAI();
     const prompt = `You are a medical AI assistant. Based on the following symptoms/query, suggest the single most appropriate medical specialization the patient should consult. Return ONLY a valid JSON object with two keys: "specialization" (a string, the recommended doctor type, e.g. "Cardiologist", "Neurologist", "Dermatologist") and "reason" (a string, a 1-2 sentence explanation why). Do not include markdown formatting or backticks. Query: ${symptoms}`;
     
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json'
-      }
-    });
-
-    const text = response.text;
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
     if (text) {
       return JSON.parse(text);
     }
@@ -37,6 +38,7 @@ export async function getDoctorSuggestions(symptoms: string) {
 
 export async function chatWithDoctorAI(doctorName: string, specialization: string, message: string, history: any[] = []) {
   try {
+    const ai = getAI();
     const formattedHistory = history.map(h => `${h.isAI ? 'Assistant' : 'Patient'}: ${h.text}`).join('\n');
     
     const prompt = `You are an advanced AI assistant representing ${doctorName}, a ${specialization}. The doctor is currently unavailable to chat live.
@@ -56,12 +58,10 @@ export async function chatWithDoctorAI(doctorName: string, specialization: strin
     ___COLLECTED_DATA___ {"name": "patient name", "contact": "patient contact", "problem": "patient problem"}
     `;
     
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt
-    });
-
-    return response.text;
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
   } catch (error) {
     console.error("Gemini AI Chat Error:", error);
     return `Hello! I am an AI assistant representing ${doctorName} (${specialization}). The AI service is currently unavailable. Could you please provide your details to book a consultation?`;
