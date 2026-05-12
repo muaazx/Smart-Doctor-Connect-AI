@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "name": "react-example",
   "private": true,
   "version": "0.0.0",
@@ -46,17 +45,5 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
-=======
-  "name": "smart-doctor-connect-root",
-  "private": true,
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
-  "scripts": {
-    "dev": "npm run dev --prefix frontend",
-    "build": "npm run build --prefix frontend",
-    "preview": "npm run preview --prefix frontend"
->>>>>>> ff0f5c4 (Initial commit: Smart Doctor Connect with Firebase)
   }
 }
