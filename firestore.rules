@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Validation Helpers
+    function isValidDoctor(data) {
+      return data.keys().hasAll(['uid', 'name', 'specialization', 'location']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() < 100 &&
+             data.specialization is string && data.specialization.size() < 100 &&
+             data.location is string && data.location.size() < 200;
+    }
+
+    function isValidPatient(data) {
+      return data.keys().hasAll(['uid', 'name', 'email']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() < 100 &&
+             data.email is string && data.email.size() < 100;
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['doctorId', 'patientId', 'timeSlot', 'date', 'status']) &&
+             data.status in ['pending', 'confirmed', 'cancelled', 'completed'];
+    }
+
+    // Match Doctors
+    match /doctors/{doctorId} {
+      allow read: if true; // Public profiles
+      allow create, update: if isOwner(doctorId) && isValidDoctor(request.resource.data);
+    }
+
+    // Match Patients
+    match /patients/{patientId} {
+      allow read: if isSignedIn() && (isOwner(patientId) || exists(/databases/$(database)/documents/doctors/$(request.auth.uid)));
+      allow create, update: if isOwner(patientId) && isValidPatient(request.resource.data);
+    }
+
+    // Match Appointments
+    match /appointments/{appointmentId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.patientId ||
+        request.auth.uid == resource.data.doctorId
+      );
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.patientId && isValidAppointment(request.resource.data);
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.patientId ||
+        request.auth.uid == resource.data.doctorId
+      ) && isValidAppointment(request.resource.data);
+    }
+
+    // Match Chats
+    match /chats/{chatId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.patientId ||
+        request.auth.uid == resource.data.doctorId
+      );
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.patientId ||
+        request.auth.uid == request.resource.data.doctorId
+      );
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.patientId ||
+        request.auth.uid == resource.data.doctorId
+      );
+    }
+  }
+}
